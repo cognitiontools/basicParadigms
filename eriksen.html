@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Eriksen Flanker Task Demo</title>
+
+  <script src="https://unpkg.com/jspsych@8.2.1"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-fullscreen@2.1.0"></script>
+
+  <link href="https://unpkg.com/jspsych@8.2.1/css/jspsych.css" rel="stylesheet" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #111;
+      color: white;
+      width: 100%;
+      min-height: 100%;
+      overflow-x: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .small-text {
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.5;
+      max-width: 900px;
+      margin: auto;
+      padding: 24px;
+    }
+
+    .display {
+      position: relative;
+      width: min(96vw, 1400px);
+      height: min(55vh, 520px);
+      margin: auto;
+      border: none;
+      background-color: #111;
+    }
+
+    .fixation {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(32px, 5vw, 56px);
+      line-height: 1;
+    }
+
+    .flanker-row {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      gap: clamp(8px, 1.5vw, 22px);
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(48px, 8vw, 96px);
+      font-weight: bold;
+      line-height: 1;
+      letter-spacing: clamp(2px, 0.5vw, 8px);
+    }
+
+    .target-arrow {
+      color: white;
+    }
+
+    .flanker-arrow {
+      color: white;
+    }
+
+    .results-card {
+      max-width: 900px;
+      margin: 30px auto;
+      padding: 28px;
+      border: 1px solid #444;
+      border-radius: 12px;
+      background-color: #1a1a1a;
+      color: white;
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.5;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    .result-box {
+      border: 1px solid #555;
+      border-radius: 10px;
+      padding: 16px;
+      background-color: #222;
+    }
+
+    .result-label {
+      font-size: 0.85em;
+      color: #bbb;
+      margin-bottom: 6px;
+    }
+
+    .result-value {
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+
+    .interpretation {
+      margin-top: 20px;
+      padding: 16px;
+      border-left: 4px solid #f5d76e;
+      background-color: #222;
+    }
+
+    .restart-button {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 12px 18px;
+      font-size: 18px;
+      border: 1px solid #f5d76e;
+      border-radius: 8px;
+      background-color: #111;
+      color: white;
+      cursor: pointer;
+    }
+
+    .restart-button:hover {
+      background-color: #222;
+    }
+  </style>
+</head>
+
+<body></body>
+
+<script>
+  const jsPsych = initJsPsych({
+    on_finish: function() {
+      // Results are shown on the final screen.
+      // Raw CSV data is not automatically displayed.
+    }
+  });
+
+  const timeline = [];
+
+  /*
+    Timing constants
+  */
+
+  const FIXATION_MIN = 250;
+  const FIXATION_MAX = 750;
+
+  const STIMULUS_DURATION = 150;
+  const RESPONSE_WINDOW_AFTER_STIMULUS = 1200;
+  const ISI_DURATION = 500;
+
+  /*
+    Design constants
+  */
+
+  const REPETITIONS_PER_CELL = 8;
+
+  const enterFullscreen = {
+    type: jsPsychFullscreen,
+    fullscreen_mode: true,
+    message: `
+      <div class="small-text">
+        <h2>Eriksen Flanker Task Demonstration</h2>
+        <p>This task will now enter fullscreen mode.</p>
+        <p>Please keep your hands near the <b>F</b> and <b>J</b> keys.</p>
+      </div>
+    `,
+    button_label: "Enter fullscreen"
+  };
+
+  timeline.push(enterFullscreen);
+
+  const instructions = {
+    type: jsPsychInstructions,
+    pages: [
+      `<div class="small-text">
+        <h2>Instructions</h2>
+
+        <p>You will see a row of five symbols.</p>
+
+        <p>Your task is to respond to the <b>middle arrow only</b>.</p>
+
+        <p>Press <b>F</b> if the middle arrow points <b>left</b>.</p>
+
+        <p>Press <b>J</b> if the middle arrow points <b>right</b>.</p>
+
+        <p>Ignore the symbols around the middle arrow. They may point in the same direction, the opposite direction, or be neutral.</p>
+
+        <p>The stimulus appears briefly, then disappears. Respond as quickly and accurately as possible.</p>
+      </div>`
+    ],
+    show_clickable_nav: true
+  };
+
+  timeline.push(instructions);
+
+  function randomInteger(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function safeRound(value) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "NA";
+    }
+    return Math.round(value);
+  }
+
+  function safeFixed(value, digits = 1) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "NA";
+    }
+    return value.toFixed(digits);
+  }
+
+  function makeDisplay(stimulusArray = null, showFixation = true) {
+    let fixationHTML = "";
+
+    if (showFixation) {
+      fixationHTML = `<div class="fixation">+</div>`;
+    }
+
+    let stimulusHTML = "";
+
+    if (stimulusArray !== null) {
+      fixationHTML = "";
+
+      stimulusHTML = `
+        <div class="flanker-row">
+          <span class="flanker-arrow">${stimulusArray[0]}</span>
+          <span class="flanker-arrow">${stimulusArray[1]}</span>
+          <span class="target-arrow">${stimulusArray[2]}</span>
+          <span class="flanker-arrow">${stimulusArray[3]}</span>
+          <span class="flanker-arrow">${stimulusArray[4]}</span>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="display">
+        ${fixationHTML}
+        ${stimulusHTML}
+      </div>
+    `;
+  }
+
+  function createStimulusArray(targetDirection, condition) {
+    let targetSymbol = targetDirection === "left" ? "←" : "→";
+    let flankerSymbol = "";
+
+    if (condition === "congruent") {
+      flankerSymbol = targetSymbol;
+    } else if (condition === "incongruent") {
+      flankerSymbol = targetDirection === "left" ? "→" : "←";
+    } else if (condition === "neutral") {
+      flankerSymbol = "–";
+    }
+
+    return [
+      flankerSymbol,
+      flankerSymbol,
+      targetSymbol,
+      flankerSymbol,
+      flankerSymbol
+    ];
+  }
+
+  function createTrial(targetDirection, condition) {
+    const stimulusArray = createStimulusArray(targetDirection, condition);
+    const correctResponse = targetDirection === "left" ? "f" : "j";
+    const fixationDuration = randomInteger(FIXATION_MIN, FIXATION_MAX);
+
+    return {
+      timeline: [
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: makeDisplay(null, true),
+          choices: "NO_KEYS",
+          trial_duration: fixationDuration,
+          data: {
+            phase: "fixation",
+            fixation_duration: fixationDuration
+          }
+        },
+
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: makeDisplay(stimulusArray, false),
+          choices: "NO_KEYS",
+          trial_duration: STIMULUS_DURATION,
+          data: {
+            phase: "stimulus_display",
+            target_direction: targetDirection,
+            flanker_condition: condition,
+            stimulus_string: stimulusArray.join(""),
+            stimulus_duration: STIMULUS_DURATION
+          }
+        },
+
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: makeDisplay(null, true),
+          choices: ["f", "j"],
+          trial_duration: RESPONSE_WINDOW_AFTER_STIMULUS,
+          response_ends_trial: true,
+          data: {
+            phase: "response",
+            task_type: "eriksen_flanker",
+            target_direction: targetDirection,
+            flanker_condition: condition,
+            stimulus_string: stimulusArray.join(""),
+            fixation_duration: fixationDuration,
+            stimulus_duration: STIMULUS_DURATION,
+            response_window_after_stimulus: RESPONSE_WINDOW_AFTER_STIMULUS,
+            correct_response: correctResponse
+          },
+          on_finish: function(data) {
+            data.correct = jsPsych.pluginAPI.compareKeys(
+              data.response,
+              data.correct_response
+            );
+
+            data.responded = data.response !== null;
+
+            if (data.rt !== null) {
+              data.rt_from_stimulus_offset = data.rt;
+              data.rt_from_stimulus_onset = data.rt + STIMULUS_DURATION;
+            } else {
+              data.rt_from_stimulus_offset = null;
+              data.rt_from_stimulus_onset = null;
+            }
+          }
+        },
+
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: makeDisplay(null, false),
+          choices: "NO_KEYS",
+          trial_duration: ISI_DURATION,
+          data: {
+            phase: "isi",
+            isi_duration: ISI_DURATION
+          }
+        }
+      ]
+    };
+  }
+
+  /*
+    Trial structure.
+
+    Conditions:
+    - Congruent
+    - Incongruent
+    - Neutral
+
+    Target directions:
+    - Left
+    - Right
+
+    Total trials:
+    3 conditions × 2 target directions × 8 repetitions = 48 trials
+  */
+
+  const trials = [];
+
+  const targetDirections = ["left", "right"];
+  const conditions = ["congruent", "incongruent", "neutral"];
+
+  for (let rep = 0; rep < REPETITIONS_PER_CELL; rep++) {
+    for (let condition of conditions) {
+      for (let targetDirection of targetDirections) {
+        trials.push(createTrial(targetDirection, condition));
+      }
+    }
+  }
+
+  timeline.push({
+    timeline: jsPsych.randomization.shuffle(trials)
+  });
+
+  const summary = {
+    type: jsPsychHtmlKeyboardResponse,
+    choices: "NO_KEYS",
+    stimulus: function() {
+      const allResponseData = jsPsych.data.get().filter({phase: "response"});
+      const correctData = allResponseData.filter({correct: true});
+
+      const congruentRT = correctData.filter({flanker_condition: "congruent"}).select("rt_from_stimulus_onset").mean();
+      const incongruentRT = correctData.filter({flanker_condition: "incongruent"}).select("rt_from_stimulus_onset").mean();
+      const neutralRT = correctData.filter({flanker_condition: "neutral"}).select("rt_from_stimulus_onset").mean();
+
+      const flankerEffect = incongruentRT - congruentRT;
+      const interferenceEffect = incongruentRT - neutralRT;
+      const facilitationEffect = neutralRT - congruentRT;
+
+      const totalTrials = allResponseData.count();
+      const correctTrials = correctData.count();
+      const missedTrials = allResponseData.filter({responded: false}).count();
+
+      const accuracy = totalTrials > 0 ? (correctTrials / totalTrials) * 100 : NaN;
+
+      const congruentTotal = allResponseData.filter({flanker_condition: "congruent"}).count();
+      const incongruentTotal = allResponseData.filter({flanker_condition: "incongruent"}).count();
+      const neutralTotal = allResponseData.filter({flanker_condition: "neutral"}).count();
+
+      const congruentCorrect = allResponseData.filter({
+        flanker_condition: "congruent",
+        correct: true
+      }).count();
+
+      const incongruentCorrect = allResponseData.filter({
+        flanker_condition: "incongruent",
+        correct: true
+      }).count();
+
+      const neutralCorrect = allResponseData.filter({
+        flanker_condition: "neutral",
+        correct: true
+      }).count();
+
+      const congruentAccuracy = congruentTotal > 0 ? (congruentCorrect / congruentTotal) * 100 : NaN;
+      const incongruentAccuracy = incongruentTotal > 0 ? (incongruentCorrect / incongruentTotal) * 100 : NaN;
+      const neutralAccuracy = neutralTotal > 0 ? (neutralCorrect / neutralTotal) * 100 : NaN;
+
+      let interpretation = "";
+
+      if (!Number.isNaN(flankerEffect)) {
+        if (flankerEffect > 0) {
+          interpretation = `
+            Your responses were slower on incongruent trials than congruent trials.
+            This is the standard Eriksen flanker effect: irrelevant flankers interfered with response selection.
+          `;
+        } else if (flankerEffect < 0) {
+          interpretation = `
+            Your responses were faster on incongruent trials than congruent trials.
+            In a short online demonstration this can happen because there are few trials, timing is noisy, or accuracy differs by condition.
+          `;
+        } else {
+          interpretation = `
+            Your congruent and incongruent reaction times were approximately equal.
+            In a short demonstration, this may occur because there are few trials or because participants successfully ignored the flankers.
+          `;
+        }
+      } else {
+        interpretation = `
+          There were not enough correct responses to calculate a reliable flanker effect.
+        `;
+      }
+
+      return `
+        <div class="results-card">
+          <h2>Eriksen Flanker Results</h2>
+
+          <p><b>Task:</b> respond to the direction of the central arrow while ignoring surrounding flankers.</p>
+
+          <div class="results-grid">
+            <div class="result-box">
+              <div class="result-label">Overall accuracy</div>
+              <div class="result-value">${safeFixed(accuracy)}%</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Missed trials</div>
+              <div class="result-value">${missedTrials}</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Congruent RT</div>
+              <div class="result-value">${safeRound(congruentRT)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Incongruent RT</div>
+              <div class="result-value">${safeRound(incongruentRT)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Neutral RT</div>
+              <div class="result-value">${safeRound(neutralRT)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Flanker effect</div>
+              <div class="result-value">${safeRound(flankerEffect)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Congruent accuracy</div>
+              <div class="result-value">${safeFixed(congruentAccuracy)}%</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Incongruent accuracy</div>
+              <div class="result-value">${safeFixed(incongruentAccuracy)}%</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Neutral accuracy</div>
+              <div class="result-value">${safeFixed(neutralAccuracy)}%</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Interference effect</div>
+              <div class="result-value">${safeRound(interferenceEffect)} ms</div>
+            </div>
+          </div>
+
+          <div class="interpretation">
+            <p><b>Interpretation:</b> ${interpretation}</p>
+            <p>The main flanker effect is calculated as <b>incongruent RT − congruent RT</b>.</p>
+            <p>The interference effect is calculated as <b>incongruent RT − neutral RT</b>.</p>
+            <p>The facilitation effect is calculated as <b>neutral RT − congruent RT</b>.</p>
+            <p>RT is calculated from stimulus onset. Because responses are collected after stimulus offset, ${STIMULUS_DURATION} ms is added to the response-window RT.</p>
+          </div>
+
+          <p><b>Timing:</b> fixation jitter ${FIXATION_MIN}–${FIXATION_MAX} ms; stimulus ${STIMULUS_DURATION} ms; response window ${RESPONSE_WINDOW_AFTER_STIMULUS} ms; blank ISI ${ISI_DURATION} ms.</p>
+
+          <button class="restart-button" onclick="location.reload()">Restart task</button>
+        </div>
+      `;
+    }
+  };
+
+  timeline.push(summary);
+
+  const exitFullscreen = {
+    type: jsPsychFullscreen,
+    fullscreen_mode: false
+  };
+
+  timeline.push(exitFullscreen);
+
+  jsPsych.run(timeline);
+</script>
+</html>

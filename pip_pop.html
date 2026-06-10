@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Pip-and-Pop Visual Search Demo</title>
+
+  <script src="https://unpkg.com/jspsych@8.2.1"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-fullscreen@2.1.0"></script>
+
+  <link href="https://unpkg.com/jspsych@8.2.1/css/jspsych.css" rel="stylesheet" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #111;
+      color: white;
+      width: 100%;
+      min-height: 100%;
+      overflow-x: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .small-text {
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.5;
+      max-width: 900px;
+      margin: auto;
+      padding: 24px;
+    }
+
+    .display {
+      position: relative;
+      width: min(96vw, 1400px);
+      height: min(62vh, 620px);
+      margin: auto;
+      border: none;
+      background-color: #111;
+      overflow: hidden;
+    }
+
+    .fixation {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(32px, 5vw, 56px);
+      line-height: 1;
+    }
+
+    .search-item {
+      position: absolute;
+      width: clamp(34px, 4.8vw, 62px);
+      height: clamp(34px, 4.8vw, 62px);
+      border-radius: 50%;
+      border: 2px solid white;
+      transform: translate(-50%, -50%);
+      box-sizing: border-box;
+      background-color: #444;
+    }
+
+    .line {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      background-color: white;
+      transform: translate(-50%, -50%);
+    }
+
+    .line-horizontal {
+      width: 65%;
+      height: 4px;
+    }
+
+    .line-vertical {
+      width: 4px;
+      height: 65%;
+    }
+
+    .target-pop {
+      border-color: #f5d76e;
+      box-shadow: 0 0 18px #f5d76e;
+      background-color: #f5d76e !important;
+    }
+
+    .results-card {
+      max-width: 980px;
+      margin: 30px auto;
+      padding: 28px;
+      border: 1px solid #444;
+      border-radius: 12px;
+      background-color: #1a1a1a;
+      color: white;
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.5;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    .result-box {
+      border: 1px solid #555;
+      border-radius: 10px;
+      padding: 16px;
+      background-color: #222;
+    }
+
+    .result-label {
+      font-size: 0.85em;
+      color: #bbb;
+      margin-bottom: 6px;
+    }
+
+    .result-value {
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      margin-bottom: 20px;
+      font-size: 0.95em;
+    }
+
+    .results-table th,
+    .results-table td {
+      border: 1px solid #555;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .results-table th {
+      background-color: #222;
+      color: #f5d76e;
+    }
+
+    .interpretation {
+      margin-top: 20px;
+      padding: 16px;
+      border-left: 4px solid #f5d76e;
+      background-color: #222;
+    }
+
+    .restart-button,
+    .sound-button {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 12px 18px;
+      font-size: 18px;
+      border: 1px solid #f5d76e;
+      border-radius: 8px;
+      background-color: #111;
+      color: white;
+      cursor: pointer;
+    }
+
+    .restart-button:hover,
+    .sound-button:hover {
+      background-color: #222;
+    }
+  </style>
+</head>
+
+<body></body>
+
+<script>
+  const jsPsych = initJsPsych({
+    on_finish: function() {
+      // Results are shown on the final screen.
+    }
+  });
+
+  const timeline = [];
+
+  /*
+    Timing constants
+  */
+
+  const FIXATION_MIN = 250;
+  const FIXATION_MAX = 750;
+
+  const PRE_TARGET_DYNAMIC_FRAMES_MIN = 3;
+  const PRE_TARGET_DYNAMIC_FRAMES_MAX = 6;
+
+  const FRAME_DURATION = 120;
+  const TARGET_POP_DURATION = 120;
+  const RESPONSE_WINDOW_AFTER_POP = 2500;
+  const ISI_DURATION = 500;
+
+  /*
+    Design constants
+  */
+
+  const SET_SIZES = [8, 16, 24];
+  const PIP_CONDITIONS = ["pip", "no_pip"];
+  const TARGET_ORIENTATIONS = ["horizontal", "vertical"];
+  const REPETITIONS_PER_CELL = 4;
+
+  /*
+    Response mapping
+  */
+
+  const HORIZONTAL_KEY = "f";
+  const VERTICAL_KEY = "j";
+
+  /*
+    Search display constants
+  */
+
+  const GRID_COLUMNS = 6;
+  const GRID_ROWS = 4;
+
+  const X_MIN = 12;
+  const X_MAX = 88;
+  const Y_MIN = 15;
+  const Y_MAX = 85;
+
+  const COLOUR_POOL = [
+    "#d9534f",
+    "#5bc0de",
+    "#5cb85c",
+    "#9370db",
+    "#f0ad4e",
+    "#aaaaaa"
+  ];
+
+  /*
+    Audio constants
+  */
+
+  const PIP_FREQUENCY = 800;
+  const PIP_DURATION = 50;
+  const PIP_GAIN = 0.18;
+
+  let audioContext = null;
+
+  function initAudio() {
+    if (audioContext === null) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioContext = new AudioContextClass();
+    }
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+  }
+
+  function playPip() {
+    if (audioContext === null) {
+      initAudio();
+    }
+
+    const now = audioContext.currentTime;
+    const durationSec = PIP_DURATION / 1000;
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(PIP_FREQUENCY, now);
+
+    gainNode.gain.setValueAtTime(0.0001, now);
+    gainNode.gain.exponentialRampToValueAtTime(PIP_GAIN, now + 0.005);
+    gainNode.gain.setValueAtTime(PIP_GAIN, now + Math.max(durationSec - 0.005, 0.005));
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.start(now);
+    oscillator.stop(now + durationSec + 0.01);
+  }
+
+  /*
+    Fullscreen
+  */
+
+  const enterFullscreen = {
+    type: jsPsychFullscreen,
+    fullscreen_mode: true,
+    message: `
+      <div class="small-text">
+        <h2>Dynamic Pip-and-Pop Visual Search Demonstration</h2>
+        <p>This task will now enter fullscreen mode.</p>
+        <p>Please use headphones or speakers.</p>
+        <p>Please keep your hands near the <b>F</b> and <b>J</b> keys.</p>
+      </div>
+    `,
+    button_label: "Enter fullscreen"
+  };
+
+  timeline.push(enterFullscreen);
+
+  /*
+    Instructions
+  */
+
+  const instructions = {
+    type: jsPsychInstructions,
+    pages: [
+      `<div class="small-text">
+        <h2>Instructions</h2>
+
+        <p>You will see several circular items on the screen.</p>
+
+        <p>The items will change colour repeatedly.</p>
+
+        <p>On each trial, one item will briefly turn <b>yellow</b>. This is the target.</p>
+
+        <p>Your task is to report the orientation of the line inside the yellow target.</p>
+
+        <p>Press <b>F</b> if the target line is <b>horizontal</b>.</p>
+
+        <p>Press <b>J</b> if the target line is <b>vertical</b>.</p>
+
+        <p>On some trials, a brief sound will occur at the exact moment the target turns yellow. On other trials, there will be no sound.</p>
+
+        <p>This demonstrates the <b>pip-and-pop effect</b>: a synchronous auditory event can help the visual target stand out.</p>
+      </div>`
+    ],
+    show_clickable_nav: true
+  };
+
+  timeline.push(instructions);
+
+  /*
+    Sound check
+  */
+
+  const soundCheck = {
+    type: jsPsychHtmlKeyboardResponse,
+    choices: "NO_KEYS",
+    stimulus: `
+      <div class="small-text">
+        <h2>Sound check</h2>
+        <p>Click the button below to enable audio and hear a brief test pip.</p>
+        <button id="sound-check-button" class="sound-button">Play test pip and continue</button>
+      </div>
+    `,
+    on_load: function() {
+      const button = document.getElementById("sound-check-button");
+
+      button.addEventListener("click", function() {
+        initAudio();
+        playPip();
+
+        setTimeout(function() {
+          jsPsych.finishTrial({
+            phase: "sound_check"
+          });
+        }, 250);
+      });
+    }
+  };
+
+  timeline.push(soundCheck);
+
+  /*
+    Utility functions
+  */
+
+  function randomInteger(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function shuffleArray(array) {
+    return jsPsych.randomization.shuffle(array);
+  }
+
+  function randomChoice(array) {
+    return array[randomInteger(0, array.length - 1)];
+  }
+
+  function safeRound(value) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "NA";
+    }
+    return Math.round(value);
+  }
+
+  function safeFixed(value, digits = 1) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "NA";
+    }
+    return value.toFixed(digits);
+  }
+
+  function mean(values) {
+    const clean = values.filter(function(v) {
+      return v !== null && v !== undefined && !Number.isNaN(v);
+    });
+
+    if (clean.length === 0) {
+      return NaN;
+    }
+
+    return clean.reduce(function(a, b) {
+      return a + b;
+    }, 0) / clean.length;
+  }
+
+  function calculateSlope(xValues, yValues) {
+    const pairs = [];
+
+    for (let i = 0; i < xValues.length; i++) {
+      if (
+        yValues[i] !== null &&
+        yValues[i] !== undefined &&
+        !Number.isNaN(yValues[i])
+      ) {
+        pairs.push({
+          x: xValues[i],
+          y: yValues[i]
+        });
+      }
+    }
+
+    if (pairs.length < 2) {
+      return NaN;
+    }
+
+    const xMean = mean(pairs.map(function(p) { return p.x; }));
+    const yMean = mean(pairs.map(function(p) { return p.y; }));
+
+    let numerator = 0;
+    let denominator = 0;
+
+    for (let p of pairs) {
+      numerator += (p.x - xMean) * (p.y - yMean);
+      denominator += (p.x - xMean) * (p.x - xMean);
+    }
+
+    if (denominator === 0) {
+      return NaN;
+    }
+
+    return numerator / denominator;
+  }
+
+  /*
+    Display functions
+  */
+
+  function makeFixationDisplay(showFixation = true) {
+    const fixationHTML = showFixation ? `<div class="fixation">+</div>` : "";
+
+    return `
+      <div class="display">
+        ${fixationHTML}
+      </div>
+    `;
+  }
+
+  function generateGridPositions() {
+    const positions = [];
+
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLUMNS; col++) {
+        const xStep = (X_MAX - X_MIN) / (GRID_COLUMNS - 1);
+        const yStep = (Y_MAX - Y_MIN) / (GRID_ROWS - 1);
+
+        const baseX = X_MIN + col * xStep;
+        const baseY = Y_MIN + row * yStep;
+
+        const jitterX = randomInteger(-3, 3);
+        const jitterY = randomInteger(-3, 3);
+
+        positions.push({
+          x: baseX + jitterX,
+          y: baseY + jitterY
+        });
+      }
+    }
+
+    return shuffleArray(positions);
+  }
+
+  function createSearchItems(setSize, targetOrientation) {
+    const positions = generateGridPositions().slice(0, setSize);
+    const targetIndex = randomInteger(0, setSize - 1);
+    const items = [];
+
+    for (let i = 0; i < setSize; i++) {
+      if (i === targetIndex) {
+        items.push({
+          id: i,
+          type: "target",
+          orientation: targetOrientation,
+          x: positions[i].x,
+          y: positions[i].y
+        });
+      } else {
+        const distractorOrientation = randomChoice(["horizontal", "vertical"]);
+
+        items.push({
+          id: i,
+          type: "distractor",
+          orientation: distractorOrientation,
+          x: positions[i].x,
+          y: positions[i].y
+        });
+      }
+    }
+
+    return shuffleArray(items);
+  }
+
+  function assignDynamicColours(items, targetVisible = false) {
+    return items.map(function(item) {
+      let colour = randomChoice(COLOUR_POOL);
+      let isTargetPop = false;
+
+      if (targetVisible && item.type === "target") {
+        colour = "#f5d76e";
+        isTargetPop = true;
+      }
+
+      return {
+        id: item.id,
+        type: item.type,
+        orientation: item.orientation,
+        x: item.x,
+        y: item.y,
+        colour: colour,
+        isTargetPop: isTargetPop
+      };
+    });
+  }
+
+  function makeSearchDisplay(itemsWithColours) {
+    let itemsHTML = "";
+
+    for (let item of itemsWithColours) {
+      const lineClass = item.orientation === "horizontal" ? "line-horizontal" : "line-vertical";
+      const popClass = item.isTargetPop ? "target-pop" : "";
+
+      itemsHTML += `
+        <div
+          class="search-item ${popClass}"
+          style="
+            left: ${item.x}%;
+            top: ${item.y}%;
+            background-color: ${item.colour};
+            border-color: ${item.colour};
+          "
+        >
+          <div class="line ${lineClass}"></div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="display">
+        ${itemsHTML}
+      </div>
+    `;
+  }
+
+  function makeDynamicFrameTrial(items, frameNumber) {
+    const colouredItems = assignDynamicColours(items, false);
+
+    return {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: makeSearchDisplay(colouredItems),
+      choices: "NO_KEYS",
+      trial_duration: FRAME_DURATION,
+      data: {
+        phase: "dynamic_pretarget_frame",
+        frame_number: frameNumber,
+        frame_duration: FRAME_DURATION
+      }
+    };
+  }
+
+  /*
+    Trial creation
+  */
+
+  function createTrial(setSize, pipCondition, targetOrientation) {
+    const fixationDuration = randomInteger(FIXATION_MIN, FIXATION_MAX);
+    const preTargetFrames = randomInteger(
+      PRE_TARGET_DYNAMIC_FRAMES_MIN,
+      PRE_TARGET_DYNAMIC_FRAMES_MAX
+    );
+
+    const searchItems = createSearchItems(setSize, targetOrientation);
+    const targetFrameItems = assignDynamicColours(searchItems, true);
+
+    const correctResponse = targetOrientation === "horizontal" ? HORIZONTAL_KEY : VERTICAL_KEY;
+    const pipPresent = pipCondition === "pip";
+
+    const itemSummary = searchItems.map(function(item) {
+      return item.type + "_" + item.orientation + "_x" + Math.round(item.x) + "_y" + Math.round(item.y);
+    }).join("|");
+
+    const trialTimeline = [];
+
+    trialTimeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: makeFixationDisplay(true),
+      choices: "NO_KEYS",
+      trial_duration: fixationDuration,
+      data: {
+        phase: "fixation",
+        fixation_duration: fixationDuration
+      }
+    });
+
+    for (let frame = 1; frame <= preTargetFrames; frame++) {
+      trialTimeline.push(
+        makeDynamicFrameTrial(searchItems, frame)
+      );
+    }
+
+    trialTimeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: makeSearchDisplay(targetFrameItems),
+      choices: "NO_KEYS",
+      trial_duration: TARGET_POP_DURATION,
+      on_start: function() {
+        if (pipPresent) {
+          playPip();
+        }
+      },
+      data: {
+        phase: "target_pop",
+        task_type: "dynamic_pip_pop_visual_search",
+        set_size: setSize,
+        pip_condition: pipCondition,
+        pip_present: pipPresent,
+        target_orientation: targetOrientation,
+        target_pop_duration: TARGET_POP_DURATION,
+        pre_target_dynamic_frames: preTargetFrames,
+        frame_duration: FRAME_DURATION,
+        pip_frequency: pipPresent ? PIP_FREQUENCY : null,
+        pip_duration: pipPresent ? PIP_DURATION : null,
+        item_summary: itemSummary
+      }
+    });
+
+    trialTimeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: makeFixationDisplay(true),
+      choices: [HORIZONTAL_KEY, VERTICAL_KEY],
+      trial_duration: RESPONSE_WINDOW_AFTER_POP,
+      response_ends_trial: true,
+      data: {
+        phase: "response",
+        task_type: "dynamic_pip_pop_visual_search",
+        set_size: setSize,
+        pip_condition: pipCondition,
+        pip_present: pipPresent,
+        target_orientation: targetOrientation,
+        fixation_duration: fixationDuration,
+        pre_target_dynamic_frames: preTargetFrames,
+        frame_duration: FRAME_DURATION,
+        target_pop_duration: TARGET_POP_DURATION,
+        response_window_after_pop: RESPONSE_WINDOW_AFTER_POP,
+        pip_frequency: pipPresent ? PIP_FREQUENCY : null,
+        pip_duration: pipPresent ? PIP_DURATION : null,
+        correct_response: correctResponse,
+        item_summary: itemSummary
+      },
+      on_finish: function(data) {
+        data.correct = jsPsych.pluginAPI.compareKeys(
+          data.response,
+          data.correct_response
+        );
+
+        data.responded = data.response !== null;
+
+        if (data.rt !== null) {
+          data.rt_from_target_offset = data.rt;
+          data.rt_from_target_onset = data.rt + TARGET_POP_DURATION;
+        } else {
+          data.rt_from_target_offset = null;
+          data.rt_from_target_onset = null;
+        }
+      }
+    });
+
+    trialTimeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: makeFixationDisplay(false),
+      choices: "NO_KEYS",
+      trial_duration: ISI_DURATION,
+      data: {
+        phase: "isi",
+        isi_duration: ISI_DURATION
+      }
+    });
+
+    return {
+      timeline: trialTimeline
+    };
+  }
+
+  /*
+    Trial structure.
+
+    Conditions:
+    - Pip present
+    - No pip
+
+    Set sizes:
+    - 8
+    - 16
+    - 24
+
+    Target orientations:
+    - Horizontal
+    - Vertical
+
+    Total:
+    2 pip conditions × 3 set sizes × 2 orientations × 4 repetitions = 48 trials
+  */
+
+  const trials = [];
+
+  for (let rep = 0; rep < REPETITIONS_PER_CELL; rep++) {
+    for (let pipCondition of PIP_CONDITIONS) {
+      for (let setSize of SET_SIZES) {
+        for (let orientation of TARGET_ORIENTATIONS) {
+          trials.push(createTrial(setSize, pipCondition, orientation));
+        }
+      }
+    }
+  }
+
+  timeline.push({
+    timeline: jsPsych.randomization.shuffle(trials)
+  });
+
+  /*
+    Results screen
+  */
+
+  const summary = {
+    type: jsPsychHtmlKeyboardResponse,
+    choices: "NO_KEYS",
+    stimulus: function() {
+      const allResponseData = jsPsych.data.get().filter({phase: "response"});
+      const correctData = allResponseData.filter({correct: true});
+
+      const totalTrials = allResponseData.count();
+      const correctTrials = correctData.count();
+      const missedTrials = allResponseData.filter({responded: false}).count();
+
+      const overallAccuracy = totalTrials > 0 ? (correctTrials / totalTrials) * 100 : NaN;
+
+      const pipData = correctData.filter({pip_condition: "pip"});
+      const noPipData = correctData.filter({pip_condition: "no_pip"});
+
+      const pipOverallRT = pipData.select("rt_from_target_onset").mean();
+      const noPipOverallRT = noPipData.select("rt_from_target_onset").mean();
+
+      const pipBenefit = noPipOverallRT - pipOverallRT;
+
+      const pipRTsBySetSize = [];
+      const noPipRTsBySetSize = [];
+
+      let tableRows = "";
+
+      for (let setSize of SET_SIZES) {
+        const pipAll = allResponseData.filter({
+          set_size: setSize,
+          pip_condition: "pip"
+        });
+
+        const noPipAll = allResponseData.filter({
+          set_size: setSize,
+          pip_condition: "no_pip"
+        });
+
+        const pipCorrect = correctData.filter({
+          set_size: setSize,
+          pip_condition: "pip"
+        });
+
+        const noPipCorrect = correctData.filter({
+          set_size: setSize,
+          pip_condition: "no_pip"
+        });
+
+        const pipRT = pipCorrect.select("rt_from_target_onset").mean();
+        const noPipRT = noPipCorrect.select("rt_from_target_onset").mean();
+
+        const pipAcc = pipAll.count() > 0
+          ? (pipCorrect.count() / pipAll.count()) * 100
+          : NaN;
+
+        const noPipAcc = noPipAll.count() > 0
+          ? (noPipCorrect.count() / noPipAll.count()) * 100
+          : NaN;
+
+        const benefit = noPipRT - pipRT;
+
+        pipRTsBySetSize.push(pipRT);
+        noPipRTsBySetSize.push(noPipRT);
+
+        tableRows += `
+          <tr>
+            <td>${setSize}</td>
+            <td>${safeRound(pipRT)} ms</td>
+            <td>${safeFixed(pipAcc)}%</td>
+            <td>${safeRound(noPipRT)} ms</td>
+            <td>${safeFixed(noPipAcc)}%</td>
+            <td>${safeRound(benefit)} ms</td>
+          </tr>
+        `;
+      }
+
+      const pipSlope = calculateSlope(SET_SIZES, pipRTsBySetSize);
+      const noPipSlope = calculateSlope(SET_SIZES, noPipRTsBySetSize);
+      const slopeReduction = noPipSlope - pipSlope;
+
+      let interpretation = "";
+
+      if (!Number.isNaN(pipBenefit)) {
+        if (pipBenefit > 0) {
+          interpretation = `
+            Responses were faster when the auditory pip occurred with the target colour change.
+            This is consistent with a pip-and-pop benefit.
+          `;
+
+          if (!Number.isNaN(slopeReduction) && slopeReduction > 0) {
+            interpretation += `
+              The search slope was smaller in the pip condition, suggesting that the pip improved search efficiency rather than only producing a general alerting effect.
+            `;
+          }
+        } else if (pipBenefit < 0) {
+          interpretation = `
+            Responses were slower when the auditory pip was present.
+            In a short online demonstration this can happen because there are few trials, the sound is distracting, or browser audio timing is variable.
+          `;
+        } else {
+          interpretation = `
+            Pip and no-pip reaction times were approximately equal.
+            In a short classroom demonstration this can occur because there are few trials or online audio timing is noisy.
+          `;
+        }
+      } else {
+        interpretation = `
+          There were not enough correct responses to calculate a reliable pip-and-pop effect.
+        `;
+      }
+
+      return `
+        <div class="results-card">
+          <h2>Dynamic Pip-and-Pop Results</h2>
+
+          <p><b>Task:</b> report whether the line inside the briefly yellow target was horizontal or vertical.</p>
+          <p><b>Manipulation:</b> target colour change with synchronous auditory pip versus target colour change without pip.</p>
+
+          <div class="results-grid">
+            <div class="result-box">
+              <div class="result-label">Overall accuracy</div>
+              <div class="result-value">${safeFixed(overallAccuracy)}%</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Missed trials</div>
+              <div class="result-value">${missedTrials}</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Pip RT</div>
+              <div class="result-value">${safeRound(pipOverallRT)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">No-pip RT</div>
+              <div class="result-value">${safeRound(noPipOverallRT)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Pip benefit</div>
+              <div class="result-value">${safeRound(pipBenefit)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Slope reduction</div>
+              <div class="result-value">${safeFixed(slopeReduction)} ms/item</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Pip slope</div>
+              <div class="result-value">${safeFixed(pipSlope)} ms/item</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">No-pip slope</div>
+              <div class="result-value">${safeFixed(noPipSlope)} ms/item</div>
+            </div>
+          </div>
+
+          <table class="results-table">
+            <tr>
+              <th>Set size</th>
+              <th>Pip RT</th>
+              <th>Pip accuracy</th>
+              <th>No-pip RT</th>
+              <th>No-pip accuracy</th>
+              <th>No-pip − pip</th>
+            </tr>
+            ${tableRows}
+          </table>
+
+          <div class="interpretation">
+            <p><b>Interpretation:</b> ${interpretation}</p>
+            <p>The pip benefit is calculated as <b>no-pip RT − pip RT</b>.</p>
+            <p>A positive value means responses were faster when the auditory pip occurred with the visual target event.</p>
+            <p>The slope reduction is calculated as <b>no-pip slope − pip slope</b>. A positive value suggests more efficient search when the pip is present.</p>
+          </div>
+
+          <p><b>Timing:</b> fixation jitter ${FIXATION_MIN}–${FIXATION_MAX} ms; dynamic frames ${FRAME_DURATION} ms each; target pop ${TARGET_POP_DURATION} ms; response window ${RESPONSE_WINDOW_AFTER_POP} ms; pip duration ${PIP_DURATION} ms; blank ISI ${ISI_DURATION} ms.</p>
+
+          <button class="restart-button" onclick="location.reload()">Restart task</button>
+        </div>
+      `;
+    }
+  };
+
+  timeline.push(summary);
+
+  const exitFullscreen = {
+    type: jsPsychFullscreen,
+    fullscreen_mode: false
+  };
+
+  timeline.push(exitFullscreen);
+
+  jsPsych.run(timeline);
+</script>
+</html>

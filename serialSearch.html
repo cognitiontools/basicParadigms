@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Serial Visual Search Task Demo</title>
+
+  <script src="https://unpkg.com/jspsych@8.2.1"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-fullscreen@2.1.0"></script>
+
+  <link href="https://unpkg.com/jspsych@8.2.1/css/jspsych.css" rel="stylesheet" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #111;
+      color: white;
+      width: 100%;
+      min-height: 100%;
+      overflow-x: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .small-text {
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.5;
+      max-width: 900px;
+      margin: auto;
+      padding: 24px;
+    }
+
+    .display {
+      position: relative;
+      width: min(96vw, 1400px);
+      height: min(62vh, 620px);
+      margin: auto;
+      border: none;
+      background-color: #111;
+    }
+
+    .fixation {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(32px, 5vw, 56px);
+      line-height: 1;
+    }
+
+    .search-item {
+      position: absolute;
+      font-size: clamp(34px, 5vw, 64px);
+      font-weight: bold;
+      color: white;
+      line-height: 1;
+      transform-origin: center center;
+      user-select: none;
+    }
+
+    .results-card {
+      max-width: 950px;
+      margin: 30px auto;
+      padding: 28px;
+      border: 1px solid #444;
+      border-radius: 12px;
+      background-color: #1a1a1a;
+      color: white;
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.5;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    .result-box {
+      border: 1px solid #555;
+      border-radius: 10px;
+      padding: 16px;
+      background-color: #222;
+    }
+
+    .result-label {
+      font-size: 0.85em;
+      color: #bbb;
+      margin-bottom: 6px;
+    }
+
+    .result-value {
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      margin-bottom: 20px;
+      font-size: 0.95em;
+    }
+
+    .results-table th,
+    .results-table td {
+      border: 1px solid #555;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .results-table th {
+      background-color: #222;
+      color: #f5d76e;
+    }
+
+    .interpretation {
+      margin-top: 20px;
+      padding: 16px;
+      border-left: 4px solid #f5d76e;
+      background-color: #222;
+    }
+
+    .restart-button {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 12px 18px;
+      font-size: 18px;
+      border: 1px solid #f5d76e;
+      border-radius: 8px;
+      background-color: #111;
+      color: white;
+      cursor: pointer;
+    }
+
+    .restart-button:hover {
+      background-color: #222;
+    }
+  </style>
+</head>
+
+<body></body>
+
+<script>
+  const jsPsych = initJsPsych({
+    on_finish: function() {
+      // Results are shown on the final screen.
+      // Raw CSV data is not automatically displayed.
+    }
+  });
+
+  const timeline = [];
+
+  /*
+    Timing constants
+  */
+
+  const FIXATION_MIN = 250;
+  const FIXATION_MAX = 750;
+
+  const SEARCH_RESPONSE_WINDOW = 4000;
+  const ISI_DURATION = 500;
+
+  /*
+    Design constants
+  */
+
+  const SET_SIZES = [4, 8, 12];
+  const TARGET_PRESENT_VALUES = [true, false];
+  const REPETITIONS_PER_CELL = 6;
+
+  /*
+    Response mapping
+  */
+
+  const PRESENT_KEY = "f";
+  const ABSENT_KEY = "j";
+
+  /*
+    Search display constants
+  */
+
+  const GRID_COLUMNS = 6;
+  const GRID_ROWS = 4;
+
+  const X_MIN = 12;
+  const X_MAX = 88;
+  const Y_MIN = 15;
+  const Y_MAX = 85;
+
+  const DISTRACTOR_ROTATIONS = [0, 90, 180, 270];
+
+  /*
+    Fullscreen
+  */
+
+  const enterFullscreen = {
+    type: jsPsychFullscreen,
+    fullscreen_mode: true,
+    message: `
+      <div class="small-text">
+        <h2>Serial Visual Search Demonstration</h2>
+        <p>This task will now enter fullscreen mode.</p>
+        <p>Please keep your hands near the <b>F</b> and <b>J</b> keys.</p>
+      </div>
+    `,
+    button_label: "Enter fullscreen"
+  };
+
+  timeline.push(enterFullscreen);
+
+  /*
+    Instructions
+  */
+
+  const instructions = {
+    type: jsPsychInstructions,
+    pages: [
+      `<div class="small-text">
+        <h2>Instructions</h2>
+
+        <p>You will see several letters on the screen.</p>
+
+        <p>Your task is to decide whether an upright <b>T</b> is present.</p>
+
+        <p>Press <b>F</b> if the <b>T is present</b>.</p>
+
+        <p>Press <b>J</b> if the <b>T is absent</b>.</p>
+
+        <p>The other items are rotated <b>L</b> shapes. Try to respond as quickly and accurately as possible.</p>
+
+        <p>This task demonstrates visual search. If search is inefficient or serial, reaction time should increase as the number of items increases.</p>
+      </div>`
+    ],
+    show_clickable_nav: true
+  };
+
+  timeline.push(instructions);
+
+  /*
+    Utility functions
+  */
+
+  function randomInteger(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function shuffleArray(array) {
+    return jsPsych.randomization.shuffle(array);
+  }
+
+  function safeRound(value) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "NA";
+    }
+    return Math.round(value);
+  }
+
+  function safeFixed(value, digits = 1) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "NA";
+    }
+    return value.toFixed(digits);
+  }
+
+  function mean(values) {
+    const clean = values.filter(function(v) {
+      return v !== null && v !== undefined && !Number.isNaN(v);
+    });
+
+    if (clean.length === 0) {
+      return NaN;
+    }
+
+    return clean.reduce(function(a, b) {
+      return a + b;
+    }, 0) / clean.length;
+  }
+
+  function calculateSlope(xValues, yValues) {
+    const pairs = [];
+
+    for (let i = 0; i < xValues.length; i++) {
+      if (
+        yValues[i] !== null &&
+        yValues[i] !== undefined &&
+        !Number.isNaN(yValues[i])
+      ) {
+        pairs.push({
+          x: xValues[i],
+          y: yValues[i]
+        });
+      }
+    }
+
+    if (pairs.length < 2) {
+      return NaN;
+    }
+
+    const xMean = mean(pairs.map(function(p) { return p.x; }));
+    const yMean = mean(pairs.map(function(p) { return p.y; }));
+
+    let numerator = 0;
+    let denominator = 0;
+
+    for (let p of pairs) {
+      numerator += (p.x - xMean) * (p.y - yMean);
+      denominator += (p.x - xMean) * (p.x - xMean);
+    }
+
+    if (denominator === 0) {
+      return NaN;
+    }
+
+    return numerator / denominator;
+  }
+
+  /*
+    Display functions
+  */
+
+  function makeFixationDisplay(showFixation = true) {
+    const fixationHTML = showFixation ? `<div class="fixation">+</div>` : "";
+
+    return `
+      <div class="display">
+        ${fixationHTML}
+      </div>
+    `;
+  }
+
+  function generateGridPositions() {
+    const positions = [];
+
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLUMNS; col++) {
+        const xStep = (X_MAX - X_MIN) / (GRID_COLUMNS - 1);
+        const yStep = (Y_MAX - Y_MIN) / (GRID_ROWS - 1);
+
+        const baseX = X_MIN + col * xStep;
+        const baseY = Y_MIN + row * yStep;
+
+        const jitterX = randomInteger(-3, 3);
+        const jitterY = randomInteger(-3, 3);
+
+        positions.push({
+          x: baseX + jitterX,
+          y: baseY + jitterY
+        });
+      }
+    }
+
+    return shuffleArray(positions);
+  }
+
+  function createSearchItems(setSize, targetPresent) {
+    const positions = generateGridPositions().slice(0, setSize);
+    const items = [];
+
+    let targetIndex = null;
+
+    if (targetPresent) {
+      targetIndex = randomInteger(0, setSize - 1);
+    }
+
+    for (let i = 0; i < setSize; i++) {
+      if (targetPresent && i === targetIndex) {
+        items.push({
+          symbol: "T",
+          type: "target",
+          rotation: 0,
+          x: positions[i].x,
+          y: positions[i].y
+        });
+      } else {
+        const rotation = DISTRACTOR_ROTATIONS[
+          randomInteger(0, DISTRACTOR_ROTATIONS.length - 1)
+        ];
+
+        items.push({
+          symbol: "L",
+          type: "distractor",
+          rotation: rotation,
+          x: positions[i].x,
+          y: positions[i].y
+        });
+      }
+    }
+
+    return shuffleArray(items);
+  }
+
+  function makeSearchDisplay(items) {
+    let itemsHTML = "";
+
+    for (let item of items) {
+      itemsHTML += `
+        <div
+          class="search-item"
+          style="
+            left: ${item.x}%;
+            top: ${item.y}%;
+            transform: translate(-50%, -50%) rotate(${item.rotation}deg);
+          "
+        >${item.symbol}</div>
+      `;
+    }
+
+    return `
+      <div class="display">
+        ${itemsHTML}
+      </div>
+    `;
+  }
+
+  /*
+    Trial creation
+  */
+
+  function createTrial(setSize, targetPresent) {
+    const fixationDuration = randomInteger(FIXATION_MIN, FIXATION_MAX);
+    const searchItems = createSearchItems(setSize, targetPresent);
+
+    const correctResponse = targetPresent ? PRESENT_KEY : ABSENT_KEY;
+    const targetStatus = targetPresent ? "present" : "absent";
+
+    const itemSummary = searchItems.map(function(item) {
+      return item.type + "_" + item.symbol + "_" + item.rotation + "_x" + Math.round(item.x) + "_y" + Math.round(item.y);
+    }).join("|");
+
+    return {
+      timeline: [
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: makeFixationDisplay(true),
+          choices: "NO_KEYS",
+          trial_duration: fixationDuration,
+          data: {
+            phase: "fixation",
+            fixation_duration: fixationDuration
+          }
+        },
+
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: makeSearchDisplay(searchItems),
+          choices: [PRESENT_KEY, ABSENT_KEY],
+          trial_duration: SEARCH_RESPONSE_WINDOW,
+          response_ends_trial: true,
+          data: {
+            phase: "response",
+            task_type: "serial_visual_search",
+            set_size: setSize,
+            target_present: targetPresent,
+            target_status: targetStatus,
+            search_response_window: SEARCH_RESPONSE_WINDOW,
+            correct_response: correctResponse,
+            item_summary: itemSummary
+          },
+          on_finish: function(data) {
+            data.correct = jsPsych.pluginAPI.compareKeys(
+              data.response,
+              data.correct_response
+            );
+
+            data.responded = data.response !== null;
+            data.rt_from_search_onset = data.rt;
+          }
+        },
+
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: makeFixationDisplay(false),
+          choices: "NO_KEYS",
+          trial_duration: ISI_DURATION,
+          data: {
+            phase: "isi",
+            isi_duration: ISI_DURATION
+          }
+        }
+      ]
+    };
+  }
+
+  /*
+    Trial structure.
+
+    Set sizes:
+    - 4
+    - 8
+    - 12
+
+    Target status:
+    - Present
+    - Absent
+
+    Total trials:
+    3 set sizes × 2 target statuses × 6 repetitions = 36 trials
+  */
+
+  const trials = [];
+
+  for (let rep = 0; rep < REPETITIONS_PER_CELL; rep++) {
+    for (let setSize of SET_SIZES) {
+      for (let targetPresent of TARGET_PRESENT_VALUES) {
+        trials.push(createTrial(setSize, targetPresent));
+      }
+    }
+  }
+
+  timeline.push({
+    timeline: jsPsych.randomization.shuffle(trials)
+  });
+
+  /*
+    Results screen
+  */
+
+  const summary = {
+    type: jsPsychHtmlKeyboardResponse,
+    choices: "NO_KEYS",
+    stimulus: function() {
+      const allResponseData = jsPsych.data.get().filter({phase: "response"});
+      const correctData = allResponseData.filter({correct: true});
+
+      const totalTrials = allResponseData.count();
+      const correctTrials = correctData.count();
+      const missedTrials = allResponseData.filter({responded: false}).count();
+
+      const overallAccuracy = totalTrials > 0 ? (correctTrials / totalTrials) * 100 : NaN;
+
+      const presentData = correctData.filter({target_status: "present"});
+      const absentData = correctData.filter({target_status: "absent"});
+
+      const presentOverallRT = presentData.select("rt_from_search_onset").mean();
+      const absentOverallRT = absentData.select("rt_from_search_onset").mean();
+
+      const presentRTsBySetSize = [];
+      const absentRTsBySetSize = [];
+
+      const presentAccBySetSize = [];
+      const absentAccBySetSize = [];
+
+      let tableRows = "";
+
+      for (let setSize of SET_SIZES) {
+        const presentAll = allResponseData.filter({
+          set_size: setSize,
+          target_status: "present"
+        });
+
+        const absentAll = allResponseData.filter({
+          set_size: setSize,
+          target_status: "absent"
+        });
+
+        const presentCorrect = correctData.filter({
+          set_size: setSize,
+          target_status: "present"
+        });
+
+        const absentCorrect = correctData.filter({
+          set_size: setSize,
+          target_status: "absent"
+        });
+
+        const presentRT = presentCorrect.select("rt_from_search_onset").mean();
+        const absentRT = absentCorrect.select("rt_from_search_onset").mean();
+
+        const presentAcc = presentAll.count() > 0
+          ? (presentCorrect.count() / presentAll.count()) * 100
+          : NaN;
+
+        const absentAcc = absentAll.count() > 0
+          ? (absentCorrect.count() / absentAll.count()) * 100
+          : NaN;
+
+        presentRTsBySetSize.push(presentRT);
+        absentRTsBySetSize.push(absentRT);
+
+        presentAccBySetSize.push(presentAcc);
+        absentAccBySetSize.push(absentAcc);
+
+        tableRows += `
+          <tr>
+            <td>${setSize}</td>
+            <td>${safeRound(presentRT)} ms</td>
+            <td>${safeFixed(presentAcc)}%</td>
+            <td>${safeRound(absentRT)} ms</td>
+            <td>${safeFixed(absentAcc)}%</td>
+          </tr>
+        `;
+      }
+
+      const presentSlope = calculateSlope(SET_SIZES, presentRTsBySetSize);
+      const absentSlope = calculateSlope(SET_SIZES, absentRTsBySetSize);
+
+      const absentMinusPresent = absentOverallRT - presentOverallRT;
+
+      let interpretation = "";
+
+      if (!Number.isNaN(presentSlope) && !Number.isNaN(absentSlope)) {
+        if (presentSlope > 0 || absentSlope > 0) {
+          interpretation = `
+            Reaction time increased as set size increased. This is consistent with an inefficient or serial search pattern.
+          `;
+
+          if (absentSlope > presentSlope) {
+            interpretation += `
+              The target-absent slope was larger than the target-present slope, which is often expected because participants may need to inspect more items before deciding that the target is absent.
+            `;
+          }
+        } else {
+          interpretation = `
+            Reaction time did not increase with set size. In a short classroom demonstration this can happen because there are few trials, timing is noisy, or participants use a different search strategy.
+          `;
+        }
+      } else {
+        interpretation = `
+          There were not enough correct responses to estimate a search slope reliably.
+        `;
+      }
+
+      return `
+        <div class="results-card">
+          <h2>Serial Visual Search Results</h2>
+
+          <p><b>Task:</b> decide whether an upright T was present among rotated L distractors.</p>
+
+          <div class="results-grid">
+            <div class="result-box">
+              <div class="result-label">Overall accuracy</div>
+              <div class="result-value">${safeFixed(overallAccuracy)}%</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Missed trials</div>
+              <div class="result-value">${missedTrials}</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Target-present RT</div>
+              <div class="result-value">${safeRound(presentOverallRT)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Target-absent RT</div>
+              <div class="result-value">${safeRound(absentOverallRT)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Present search slope</div>
+              <div class="result-value">${safeFixed(presentSlope)} ms/item</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Absent search slope</div>
+              <div class="result-value">${safeFixed(absentSlope)} ms/item</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Absent − present RT</div>
+              <div class="result-value">${safeRound(absentMinusPresent)} ms</div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-label">Total trials</div>
+              <div class="result-value">${totalTrials}</div>
+            </div>
+          </div>
+
+          <table class="results-table">
+            <tr>
+              <th>Set size</th>
+              <th>Present RT</th>
+              <th>Present accuracy</th>
+              <th>Absent RT</th>
+              <th>Absent accuracy</th>
+            </tr>
+            ${tableRows}
+          </table>
+
+          <div class="interpretation">
+            <p><b>Interpretation:</b> ${interpretation}</p>
+            <p>The search slope estimates how much RT increases for each additional display item.</p>
+            <p>A larger positive slope indicates less efficient search.</p>
+            <p>In many serial search tasks, target-absent trials are slower than target-present trials because participants must continue searching until they decide that the target is not present.</p>
+          </div>
+
+          <p><b>Timing:</b> fixation jitter ${FIXATION_MIN}–${FIXATION_MAX} ms; search display until response or ${SEARCH_RESPONSE_WINDOW} ms timeout; blank ISI ${ISI_DURATION} ms.</p>
+
+          <button class="restart-button" onclick="location.reload()">Restart task</button>
+        </div>
+      `;
+    }
+  };
+
+  timeline.push(summary);
+
+  const exitFullscreen = {
+    type: jsPsychFullscreen,
+    fullscreen_mode: false
+  };
+
+  timeline.push(exitFullscreen);
+
+  jsPsych.run(timeline);
+</script>
+</html>
