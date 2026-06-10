@@ -241,14 +241,6 @@
 
   let selectedDevice = null;
 
-  /*
-    Timing constants.
-
-    Endogenous cueing usually uses a longer cue-target interval than
-    exogenous cueing because participants need time to interpret and
-    voluntarily use the central symbolic cue.
-  */
-
   const FIXATION_MIN = 250;
   const FIXATION_MAX = 750;
 
@@ -260,20 +252,8 @@
   const RESPONSE_WINDOW_AFTER_TARGET = 1200;
   const ISI_DURATION = 500;
 
-  /*
-    Predictiveness.
-
-    This endogenous version uses an 80% valid cue.
-    That is, the central arrow correctly predicts the target side on
-    80% of trials and incorrectly predicts it on 20% of trials.
-  */
-
   const VALID_REPETITIONS = 16;
   const INVALID_REPETITIONS = 4;
-
-  /*
-    Device selection.
-  */
 
   const deviceSelect = {
     type: jsPsychHtmlButtonResponse,
@@ -298,7 +278,7 @@
       `Laptop<span class="button-subtext">Keyboard responses</span>`
     ],
     button_html: function(choice) {
-      return `<button class="device-button">%choice%</button>`;
+      return `<button class="device-button">${choice}</button>`;
     },
     data: {
       phase: "device_selection"
@@ -315,10 +295,6 @@
   };
 
   timeline.push(deviceSelect);
-
-  /*
-    Fullscreen.
-  */
 
   const enterFullscreen = {
     type: jsPsychFullscreen,
@@ -348,10 +324,6 @@
   };
 
   timeline.push(enterFullscreen);
-
-  /*
-    Instructions.
-  */
 
   const instructions = {
     type: jsPsychInstructions,
@@ -394,10 +366,6 @@
   };
 
   timeline.push(instructions);
-
-  /*
-    Utility functions.
-  */
 
   function randomInteger(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -490,10 +458,6 @@
       data.response_label = null;
     }
   }
-
-  /*
-    Trial creation.
-  */
 
   function createTrial(cueSide, targetSide, targetOrientation) {
     const validity = cueSide === targetSide ? "valid" : "invalid";
@@ -604,7 +568,7 @@
                 `▼<span class="button-subtext">Down</span>`
               ],
               button_html: function(choice) {
-                return `<button class="touch-response-button">%choice%</button>`;
+                return `<button class="touch-response-button">${choice}</button>`;
               },
               trial_duration: RESPONSE_WINDOW_AFTER_TARGET,
               response_ends_trial: true,
@@ -648,28 +612,6 @@
     };
   }
 
-  /*
-    Trial structure.
-
-    Predictive endogenous cueing:
-    - 80% valid
-    - 20% invalid
-
-    Valid trials:
-    - left arrow  -> left target
-    - right arrow -> right target
-
-    Invalid trials:
-    - left arrow  -> right target
-    - right arrow -> left target
-
-    Target response:
-    - F / Up button = triangle up
-    - J / Down button = triangle down
-
-    Target location is irrelevant to the response.
-  */
-
   const trials = [];
 
   const cueSides = ["left", "right"];
@@ -698,10 +640,6 @@
   timeline.push({
     timeline: jsPsych.randomization.shuffle(trials)
   });
-
-  /*
-    Results screen.
-  */
 
   const summary = {
     type: jsPsychHtmlKeyboardResponse,
