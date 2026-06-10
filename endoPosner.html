@@ -6,6 +6,7 @@
 
   <script src="https://unpkg.com/jspsych@8.2.1"></script>
   <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.1.0"></script>
   <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
   <script src="https://unpkg.com/@jspsych/plugin-fullscreen@2.1.0"></script>
 
@@ -89,27 +90,35 @@
       border-top: clamp(42px, 6vw, 78px) solid white;
     }
 
-    .response-buttons {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 8vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: clamp(24px, 6vw, 80px);
-      z-index: 1000;
+    .device-select-card {
+      max-width: 850px;
+      margin: 40px auto;
+      padding: 32px;
+      border: 1px solid #444;
+      border-radius: 12px;
+      background-color: #1a1a1a;
+      color: white;
+      text-align: center;
+      font-size: clamp(18px, 2vw, 24px);
+      line-height: 1.5;
     }
 
-    .response-button {
-      min-width: clamp(130px, 24vw, 240px);
-      min-height: clamp(70px, 12vh, 120px);
+    .device-note {
+      margin-top: 22px;
+      color: #bbb;
+      font-size: 0.9em;
+    }
+
+    .device-button,
+    .touch-response-button {
+      min-width: clamp(180px, 24vw, 280px);
+      min-height: clamp(75px, 12vh, 120px);
       padding: 18px 28px;
       border: 2px solid #f5d76e;
       border-radius: 16px;
       background-color: #1a1a1a;
       color: white;
-      font-size: clamp(24px, 5vw, 44px);
+      font-size: clamp(22px, 4vw, 38px);
       font-weight: bold;
       cursor: pointer;
       user-select: none;
@@ -117,20 +126,32 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    .response-button:hover {
+    .device-button:hover,
+    .touch-response-button:hover {
       background-color: #222;
     }
 
-    .response-button:active {
+    .device-button:active,
+    .touch-response-button:active {
       background-color: #333;
       transform: scale(0.98);
     }
 
-    .response-label {
-      margin-top: 10px;
-      font-size: clamp(14px, 2vw, 18px);
-      color: #bbb;
+    .button-subtext {
+      display: block;
+      margin-top: 8px;
+      font-size: 0.55em;
       font-weight: normal;
+      color: #bbb;
+    }
+
+    #jspsych-html-button-response-btngroup {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(24px, 6vw, 80px);
+      flex-wrap: wrap;
+      margin-top: 28px;
     }
 
     .results-card {
@@ -218,6 +239,16 @@
 
   const timeline = [];
 
+  let selectedDevice = null;
+
+  /*
+    Timing constants.
+
+    Endogenous cueing usually uses a longer cue-target interval than
+    exogenous cueing because participants need time to interpret and
+    voluntarily use the central symbolic cue.
+  */
+
   const FIXATION_MIN = 250;
   const FIXATION_MAX = 750;
 
@@ -229,46 +260,144 @@
   const RESPONSE_WINDOW_AFTER_TARGET = 1200;
   const ISI_DURATION = 500;
 
+  /*
+    Predictiveness.
+
+    This endogenous version uses an 80% valid cue.
+    That is, the central arrow correctly predicts the target side on
+    80% of trials and incorrectly predicts it on 20% of trials.
+  */
+
   const VALID_REPETITIONS = 16;
   const INVALID_REPETITIONS = 4;
+
+  /*
+    Device selection.
+  */
+
+  const deviceSelect = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `
+      <div class="device-select-card">
+        <h2>Select device</h2>
+
+        <p>Please select the device you are using for this demonstration.</p>
+
+        <p>
+          Choose <b>Tablet</b> if you will respond by touching the screen.
+          Choose <b>Laptop</b> if you will respond using keyboard keys.
+        </p>
+
+        <div class="device-note">
+          Tablet mode uses on-screen response buttons. Laptop mode uses the F and J keys.
+        </div>
+      </div>
+    `,
+    choices: [
+      `Tablet<span class="button-subtext">Touch responses</span>`,
+      `Laptop<span class="button-subtext">Keyboard responses</span>`
+    ],
+    button_html: function(choice) {
+      return `<button class="device-button">%choice%</button>`;
+    },
+    data: {
+      phase: "device_selection"
+    },
+    on_finish: function(data) {
+      if (data.response === 0) {
+        selectedDevice = "tablet";
+      } else {
+        selectedDevice = "laptop";
+      }
+
+      data.selected_device = selectedDevice;
+    }
+  };
+
+  timeline.push(deviceSelect);
+
+  /*
+    Fullscreen.
+  */
 
   const enterFullscreen = {
     type: jsPsychFullscreen,
     fullscreen_mode: true,
-    message: `
-      <div class="small-text">
-        <h2>Endogenous Posner Cueing Demonstration</h2>
-        <p>This task will now enter fullscreen mode.</p>
-        <p>Use the <b>F</b> and <b>J</b> keys on a keyboard, or use the on-screen buttons on a tablet.</p>
-      </div>
-    `,
+    message: function() {
+      if (selectedDevice === "tablet") {
+        return `
+          <div class="small-text">
+            <h2>Endogenous Posner Cueing Demonstration</h2>
+            <p>This task will now enter fullscreen mode.</p>
+            <p>You selected <b>tablet mode</b>.</p>
+            <p>You will respond using on-screen buttons.</p>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="small-text">
+            <h2>Endogenous Posner Cueing Demonstration</h2>
+            <p>This task will now enter fullscreen mode.</p>
+            <p>You selected <b>laptop mode</b>.</p>
+            <p>Please keep your hands near the <b>F</b> and <b>J</b> keys.</p>
+          </div>
+        `;
+      }
+    },
     button_label: "Enter fullscreen"
   };
 
   timeline.push(enterFullscreen);
 
+  /*
+    Instructions.
+  */
+
   const instructions = {
     type: jsPsychInstructions,
-    pages: [
-      `<div class="small-text">
-        <h2>Instructions</h2>
-        <p>Keep your eyes on the centre of the screen.</p>
-        <p>A central arrow will point left or right. This arrow is the spatial cue.</p>
-        <p>The arrow is <b>predictive</b>: it correctly predicts the target side on most trials.</p>
-        <p>A triangle will then appear very briefly on the left or right.</p>
-        <p>Your task is to identify whether the triangle points <b>up</b> or <b>down</b>.</p>
-        <p>Keyboard: press <b>F</b> if the triangle points <b>up</b>.</p>
-        <p>Keyboard: press <b>J</b> if the triangle points <b>down</b>.</p>
-        <p>Tablet: tap the <b>Up</b> or <b>Down</b> button.</p>
-        <p>The target appears for <b>50 ms</b>, then disappears.</p>
-        <p>You then have <b>1200 ms</b> to respond while looking at fixation.</p>
-        <p>Try to use the arrow cue, but respond to the triangle orientation, not its location.</p>
-      </div>`
-    ],
+    pages: function() {
+      if (selectedDevice === "tablet") {
+        return [
+          `<div class="small-text">
+            <h2>Instructions</h2>
+            <p>Keep your eyes on the centre of the screen.</p>
+            <p>A central arrow will point left or right. This arrow is the spatial cue.</p>
+            <p>The arrow is <b>predictive</b>: it correctly predicts the target side on most trials.</p>
+            <p>A triangle will then appear very briefly on the left or right.</p>
+            <p>Your task is to identify whether the triangle points <b>up</b> or <b>down</b>.</p>
+            <p>Tap <b>Up</b> if the triangle points <b>up</b>.</p>
+            <p>Tap <b>Down</b> if the triangle points <b>down</b>.</p>
+            <p>The target appears for <b>50 ms</b>, then disappears.</p>
+            <p>You then have <b>1200 ms</b> to respond while looking at fixation.</p>
+            <p>Try to use the arrow cue, but respond to the triangle orientation, not its location.</p>
+          </div>`
+        ];
+      } else {
+        return [
+          `<div class="small-text">
+            <h2>Instructions</h2>
+            <p>Keep your eyes on the centre of the screen.</p>
+            <p>A central arrow will point left or right. This arrow is the spatial cue.</p>
+            <p>The arrow is <b>predictive</b>: it correctly predicts the target side on most trials.</p>
+            <p>A triangle will then appear very briefly on the left or right.</p>
+            <p>Your task is to identify whether the triangle points <b>up</b> or <b>down</b>.</p>
+            <p>Press <b>F</b> if the triangle points <b>up</b>.</p>
+            <p>Press <b>J</b> if the triangle points <b>down</b>.</p>
+            <p>The target appears for <b>50 ms</b>, then disappears.</p>
+            <p>You then have <b>1200 ms</b> to respond while looking at fixation.</p>
+            <p>Try to use the arrow cue, but respond to the triangle orientation, not its location.</p>
+          </div>`
+        ];
+      }
+    },
     show_clickable_nav: true
   };
 
   timeline.push(instructions);
+
+  /*
+    Utility functions.
+  */
 
   function randomInteger(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -290,16 +419,6 @@
 
   function oppositeSide(side) {
     return side === "left" ? "right" : "left";
-  }
-
-  function triggerKeyboardResponse(key) {
-    const event = new KeyboardEvent("keydown", {
-      key: key,
-      code: key === "f" ? "KeyF" : "KeyJ",
-      bubbles: true
-    });
-
-    document.dispatchEvent(event);
   }
 
   function makeDisplay(
@@ -344,25 +463,60 @@
       <div class="display">
         <div class="fixation">+</div>
       </div>
-
-      <div class="response-buttons">
-        <button class="response-button" onclick="triggerKeyboardResponse('f')">
-          ▲
-          <div class="response-label">Up / F</div>
-        </button>
-
-        <button class="response-button" onclick="triggerKeyboardResponse('j')">
-          ▼
-          <div class="response-label">Down / J</div>
-        </button>
-      </div>
     `;
   }
+
+  function scoreResponseData(data) {
+    data.correct = jsPsych.pluginAPI.compareKeys(
+      data.response,
+      data.correct_response
+    );
+
+    data.responded = data.response !== null;
+
+    if (data.rt !== null) {
+      data.rt_from_target_offset = data.rt;
+      data.rt_from_target_onset = data.rt + TARGET_DURATION;
+    } else {
+      data.rt_from_target_offset = null;
+      data.rt_from_target_onset = null;
+    }
+
+    if (data.response === "f") {
+      data.response_label = "up";
+    } else if (data.response === "j") {
+      data.response_label = "down";
+    } else {
+      data.response_label = null;
+    }
+  }
+
+  /*
+    Trial creation.
+  */
 
   function createTrial(cueSide, targetSide, targetOrientation) {
     const validity = cueSide === targetSide ? "valid" : "invalid";
     const correctResponse = targetOrientation === "up" ? "f" : "j";
     const fixationDuration = randomInteger(FIXATION_MIN, FIXATION_MAX);
+
+    const sharedResponseData = {
+      phase: "response",
+      task_type: "endogenous_posner",
+      cue_modality: "visual_symbolic",
+      cue_type: "central_arrow",
+      cue_side: cueSide,
+      target_side: targetSide,
+      target_orientation: targetOrientation,
+      validity: validity,
+      fixation_duration: fixationDuration,
+      central_cue_duration: CENTRAL_CUE_DURATION,
+      post_cue_fixation_duration: POST_CUE_FIXATION,
+      ctoa: CTOA,
+      target_duration: TARGET_DURATION,
+      response_window_after_target: RESPONSE_WINDOW_AFTER_TARGET,
+      correct_response: correctResponse
+    };
 
     return {
       timeline: [
@@ -418,51 +572,65 @@
         },
 
         {
-          type: jsPsychHtmlKeyboardResponse,
-          stimulus: makeResponseDisplay(),
-          choices: ["f", "j"],
-          trial_duration: RESPONSE_WINDOW_AFTER_TARGET,
-          response_ends_trial: true,
-          data: {
-            phase: "response",
-            task_type: "endogenous_posner",
-            cue_modality: "visual_symbolic",
-            cue_type: "central_arrow",
-            cue_side: cueSide,
-            target_side: targetSide,
-            target_orientation: targetOrientation,
-            validity: validity,
-            fixation_duration: fixationDuration,
-            central_cue_duration: CENTRAL_CUE_DURATION,
-            post_cue_fixation_duration: POST_CUE_FIXATION,
-            ctoa: CTOA,
-            target_duration: TARGET_DURATION,
-            response_window_after_target: RESPONSE_WINDOW_AFTER_TARGET,
-            correct_response: correctResponse
-          },
-          on_finish: function(data) {
-            data.correct = jsPsych.pluginAPI.compareKeys(
-              data.response,
-              data.correct_response
-            );
-
-            data.responded = data.response !== null;
-
-            if (data.rt !== null) {
-              data.rt_from_target_offset = data.rt;
-              data.rt_from_target_onset = data.rt + TARGET_DURATION;
-            } else {
-              data.rt_from_target_offset = null;
-              data.rt_from_target_onset = null;
+          timeline: [
+            {
+              type: jsPsychHtmlKeyboardResponse,
+              stimulus: makeResponseDisplay(),
+              choices: ["f", "j"],
+              trial_duration: RESPONSE_WINDOW_AFTER_TARGET,
+              response_ends_trial: true,
+              data: {
+                ...sharedResponseData,
+                selected_device: "laptop",
+                input_method: "keyboard"
+              },
+              on_finish: function(data) {
+                scoreResponseData(data);
+              }
             }
+          ],
+          conditional_function: function() {
+            return selectedDevice === "laptop";
+          }
+        },
 
-            if (data.response === "f") {
-              data.response_label = "up";
-            } else if (data.response === "j") {
-              data.response_label = "down";
-            } else {
-              data.response_label = null;
+        {
+          timeline: [
+            {
+              type: jsPsychHtmlButtonResponse,
+              stimulus: makeResponseDisplay(),
+              choices: [
+                `▲<span class="button-subtext">Up</span>`,
+                `▼<span class="button-subtext">Down</span>`
+              ],
+              button_html: function(choice) {
+                return `<button class="touch-response-button">%choice%</button>`;
+              },
+              trial_duration: RESPONSE_WINDOW_AFTER_TARGET,
+              response_ends_trial: true,
+              data: {
+                ...sharedResponseData,
+                selected_device: "tablet",
+                input_method: "touch"
+              },
+              on_finish: function(data) {
+                if (data.response === 0) {
+                  data.button_response = 0;
+                  data.response = "f";
+                } else if (data.response === 1) {
+                  data.button_response = 1;
+                  data.response = "j";
+                } else {
+                  data.button_response = null;
+                  data.response = null;
+                }
+
+                scoreResponseData(data);
+              }
             }
+          ],
+          conditional_function: function() {
+            return selectedDevice === "tablet";
           }
         },
 
@@ -479,6 +647,28 @@
       ]
     };
   }
+
+  /*
+    Trial structure.
+
+    Predictive endogenous cueing:
+    - 80% valid
+    - 20% invalid
+
+    Valid trials:
+    - left arrow  -> left target
+    - right arrow -> right target
+
+    Invalid trials:
+    - left arrow  -> right target
+    - right arrow -> left target
+
+    Target response:
+    - F / Up button = triangle up
+    - J / Down button = triangle down
+
+    Target location is irrelevant to the response.
+  */
 
   const trials = [];
 
@@ -508,6 +698,10 @@
   timeline.push({
     timeline: jsPsych.randomization.shuffle(trials)
   });
+
+  /*
+    Results screen.
+  */
 
   const summary = {
     type: jsPsychHtmlKeyboardResponse,
@@ -574,6 +768,7 @@
           <p><b>Task:</b> identify whether the triangle pointed up or down.</p>
           <p><b>Cue:</b> central arrow cue.</p>
           <p><b>Cue predictiveness:</b> 80% valid, 20% invalid.</p>
+          <p><b>Selected device:</b> ${selectedDevice}</p>
 
           <div class="results-grid">
             <div class="result-box">
