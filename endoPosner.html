@@ -21,6 +21,7 @@
       min-height: 100%;
       overflow-x: hidden;
       font-family: Arial, Helvetica, sans-serif;
+      touch-action: manipulation;
     }
 
     .small-text {
@@ -88,6 +89,50 @@
       border-top: clamp(42px, 6vw, 78px) solid white;
     }
 
+    .response-buttons {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 8vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(24px, 6vw, 80px);
+      z-index: 1000;
+    }
+
+    .response-button {
+      min-width: clamp(130px, 24vw, 240px);
+      min-height: clamp(70px, 12vh, 120px);
+      padding: 18px 28px;
+      border: 2px solid #f5d76e;
+      border-radius: 16px;
+      background-color: #1a1a1a;
+      color: white;
+      font-size: clamp(24px, 5vw, 44px);
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .response-button:hover {
+      background-color: #222;
+    }
+
+    .response-button:active {
+      background-color: #333;
+      transform: scale(0.98);
+    }
+
+    .response-label {
+      margin-top: 10px;
+      font-size: clamp(14px, 2vw, 18px);
+      color: #bbb;
+      font-weight: normal;
+    }
+
     .results-card {
       max-width: 850px;
       margin: 30px auto;
@@ -148,6 +193,16 @@
     .restart-button:hover {
       background-color: #222;
     }
+
+    @media (max-width: 700px) {
+      .display {
+        height: min(50vh, 420px);
+      }
+
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 
@@ -163,14 +218,6 @@
 
   const timeline = [];
 
-  /*
-    Timing constants.
-
-    Endogenous cueing usually uses a longer cue-target interval than
-    exogenous cueing because participants need time to interpret and
-    voluntarily use the central symbolic cue.
-  */
-
   const FIXATION_MIN = 250;
   const FIXATION_MAX = 750;
 
@@ -182,20 +229,8 @@
   const RESPONSE_WINDOW_AFTER_TARGET = 1200;
   const ISI_DURATION = 500;
 
-  /*
-    Predictiveness.
-
-    This endogenous version uses an 80% valid cue.
-    That is, the central arrow correctly predicts the target side on
-    80% of trials and incorrectly predicts it on 20% of trials.
-  */
-
   const VALID_REPETITIONS = 16;
   const INVALID_REPETITIONS = 4;
-
-  /*
-    Fullscreen.
-  */
 
   const enterFullscreen = {
     type: jsPsychFullscreen,
@@ -204,17 +239,13 @@
       <div class="small-text">
         <h2>Endogenous Posner Cueing Demonstration</h2>
         <p>This task will now enter fullscreen mode.</p>
-        <p>Please keep your hands near the <b>F</b> and <b>J</b> keys.</p>
+        <p>Use the <b>F</b> and <b>J</b> keys on a keyboard, or use the on-screen buttons on a tablet.</p>
       </div>
     `,
     button_label: "Enter fullscreen"
   };
 
   timeline.push(enterFullscreen);
-
-  /*
-    Instructions.
-  */
 
   const instructions = {
     type: jsPsychInstructions,
@@ -226,8 +257,9 @@
         <p>The arrow is <b>predictive</b>: it correctly predicts the target side on most trials.</p>
         <p>A triangle will then appear very briefly on the left or right.</p>
         <p>Your task is to identify whether the triangle points <b>up</b> or <b>down</b>.</p>
-        <p>Press <b>F</b> if the triangle points <b>up</b>.</p>
-        <p>Press <b>J</b> if the triangle points <b>down</b>.</p>
+        <p>Keyboard: press <b>F</b> if the triangle points <b>up</b>.</p>
+        <p>Keyboard: press <b>J</b> if the triangle points <b>down</b>.</p>
+        <p>Tablet: tap the <b>Up</b> or <b>Down</b> button.</p>
         <p>The target appears for <b>50 ms</b>, then disappears.</p>
         <p>You then have <b>1200 ms</b> to respond while looking at fixation.</p>
         <p>Try to use the arrow cue, but respond to the triangle orientation, not its location.</p>
@@ -237,10 +269,6 @@
   };
 
   timeline.push(instructions);
-
-  /*
-    Utility functions.
-  */
 
   function randomInteger(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -262,6 +290,16 @@
 
   function oppositeSide(side) {
     return side === "left" ? "right" : "left";
+  }
+
+  function triggerKeyboardResponse(key) {
+    const event = new KeyboardEvent("keydown", {
+      key: key,
+      code: key === "f" ? "KeyF" : "KeyJ",
+      bubbles: true
+    });
+
+    document.dispatchEvent(event);
   }
 
   function makeDisplay(
@@ -301,9 +339,25 @@
     `;
   }
 
-  /*
-    Trial creation.
-  */
+  function makeResponseDisplay() {
+    return `
+      <div class="display">
+        <div class="fixation">+</div>
+      </div>
+
+      <div class="response-buttons">
+        <button class="response-button" onclick="triggerKeyboardResponse('f')">
+          ▲
+          <div class="response-label">Up / F</div>
+        </button>
+
+        <button class="response-button" onclick="triggerKeyboardResponse('j')">
+          ▼
+          <div class="response-label">Down / J</div>
+        </button>
+      </div>
+    `;
+  }
 
   function createTrial(cueSide, targetSide, targetOrientation) {
     const validity = cueSide === targetSide ? "valid" : "invalid";
@@ -365,7 +419,7 @@
 
         {
           type: jsPsychHtmlKeyboardResponse,
-          stimulus: makeDisplay(null, null, null, true),
+          stimulus: makeResponseDisplay(),
           choices: ["f", "j"],
           trial_duration: RESPONSE_WINDOW_AFTER_TARGET,
           response_ends_trial: true,
@@ -401,6 +455,14 @@
               data.rt_from_target_offset = null;
               data.rt_from_target_onset = null;
             }
+
+            if (data.response === "f") {
+              data.response_label = "up";
+            } else if (data.response === "j") {
+              data.response_label = "down";
+            } else {
+              data.response_label = null;
+            }
           }
         },
 
@@ -417,28 +479,6 @@
       ]
     };
   }
-
-  /*
-    Trial structure.
-
-    Predictive endogenous cueing:
-    - 80% valid
-    - 20% invalid
-
-    Valid trials:
-    - left arrow  -> left target
-    - right arrow -> right target
-
-    Invalid trials:
-    - left arrow  -> right target
-    - right arrow -> left target
-
-    Target response:
-    - F = triangle up
-    - J = triangle down
-
-    Target location is irrelevant to the response.
-  */
 
   const trials = [];
 
@@ -468,10 +508,6 @@
   timeline.push({
     timeline: jsPsych.randomization.shuffle(trials)
   });
-
-  /*
-    Results screen.
-  */
 
   const summary = {
     type: jsPsychHtmlKeyboardResponse,
